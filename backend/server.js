@@ -3,14 +3,60 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const { Op } = require('sequelize');
-const { User, Video } = require('./models');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 
 dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize Sequelize
+const sequelize = new Sequelize(process.env.DB_URI, {
+  dialect: 'postgres', // or 'mysql', 'sqlite' depending on your database
+  logging: false,
+});
+
+// Define Models
+const User = sequelize.define('User', {
+  username: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+});
+
+const Video = sequelize.define('Video', {
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.STRING,
+  },
+  tags: {
+    type: DataTypes.STRING,
+  },
+  fileSize: {
+    type: DataTypes.FLOAT,
+  },
+  uploadDate: {
+    type: DataTypes.DATE,
+    defaultValue: Sequelize.NOW,
+  },
+});
+
+// Relationships
+User.hasMany(Video, { foreignKey: 'userId' });
+Video.belongsTo(User, { foreignKey: 'userId' });
 
 // Authentication middleware
 const authenticate = (req, res, next) => {
@@ -100,6 +146,12 @@ app.get('/videos', authenticate, async (req, res) => {
   }
 });
 
-// Start Server
+// Sync Database and Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+sequelize
+  .sync()
+  .then(() => {
+    console.log('Database synchronized');
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => console.error('Database synchronization failed:', err));
